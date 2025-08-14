@@ -1,0 +1,105 @@
+import os
+import requests
+import base64
+from flask import Flask, request, Response
+import google.generativeai as genai
+from PIL import Image
+from io import BytesIO
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+# --- Application Setup ---
+app = Flask(__name__)
+
+# --- API Key Configuration ---
+# IMPORTANT: It's best practice to set your API key as an environment variable
+# rather than writing it directly in the code.
+# On your terminal, you can set it like this:
+# export GOOGLE_API_KEY="YOUR_API_KEY_HERE"
+# The code will then automatically pick it up.
+try:
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY environment variable not set.")
+    genai.configure(api_key=api_key)
+except ValueError as e:
+    print(f"Error: {e}")
+    print("Please set your GOOGLE_API_KEY environment variable.")
+    # You can also hardcode it here for quick testing, but this is NOT recommended for production:
+    # api_key = "YOUR_API_KEY_GOES_HERE" 
+    # genai.configure(api_key=api_key)
+
+
+# --- Reference Image ---
+# The reference document ('רישוי_שנתי.jpg') is encoded as a base64 string
+# so you don't need to keep the file alongside your script.
+REFERENCE_IMAGE_B64 = "iVBORw0KGgoAAAANSUhEUgAABQAAAAPACAIAAAD5Lp1sAAAAA3NCSVQICAjb4U/gAAAAGXRFWHRTb2Z0d2FyZQBnbm9tZS1zY3JlZW5zaG907wO/PgAAIABJREFUeJzs3Xd8VFXaB/BvMhCSCRBwQRAxYkCMiIhiQLGgYk+9ilV9r3tV63tV63tV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV63vV6"
+
+# --- Gemini Model ---
+# Using a model that is good for multimodal tasks.
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# --- Main Flask Route ---
+@app.route('/extract', methods=['GET'])
+def extract_document_fields():
+    """
+    This endpoint receives a URL to an image, fetches it, and uses Gemini
+    to extract fields based on a reference image.
+    """
+    # 1. Get the image URL from the request arguments
+    image_url = request.args.get('image_url')
+    if not image_url:
+        return Response("Error: Please provide an 'image_url' parameter.", status=400, mimetype='text/plain')
+
+    try:
+        # 2. Fetch the new image from the provided URL
+        response = requests.get(image_url, timeout=10)
+        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        new_image_bytes = response.content
+        new_image = Image.open(BytesIO(new_image_bytes))
+
+    except requests.exceptions.RequestException as e:
+        return Response(f"Error fetching image from URL: {e}", status=400, mimetype='text/plain')
+    except Exception as e:
+        return Response(f"Error processing image: {e}", status=500, mimetype='text/plain')
+
+    # 3. Prepare images for the Gemini API
+    reference_image = Image.open(BytesIO(base64.b64decode(REFERENCE_IMAGE_B64)))
+
+    # 4. Define the prompt with specific instructions for the AI
+    prompt = """
+You are an expert document analysis assistant. Your task is to first learn the spatial location of fields from a reference document using the provided text and example values. Then, you must find the data at those *exact same spatial locations* in a new, second document.
+
+Here are your instructions for learning from the reference document: From the reference image, learn the locations of the following fields: 'דגם' is 'GD9EL5R' and 'רמת גימור' is 'GX'.
+
+Now, using the locations you have just learned, analyze the new document and extract the corresponding values. Your output must be formatted on exactly four lines as follows:
+1. The literal text "דגם:"
+2. The extracted value for the 'דגם' field.
+3. The literal text "רמת גימור:"
+4. The extracted value for the 'רמת גימור' field.
+Do not include any other text or formatting.
+"""
+
+    try:
+        # 5. Send the request to the Gemini API
+        print("Sending request to Gemini API...")
+        api_response = model.generate_content([prompt, reference_image, new_image])
+        
+        # 6. Return the extracted text as a plain text response
+        return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+
+    except Exception as e:
+        print(f"An error occurred during Gemini API call: {e}")
+        return Response(f"Error communicating with the AI model: {e}", status=500, mimetype='text/plain')
+
+
+# --- Run the Application ---
+if __name__ == '__main__':
+    # Get port from environment variable (Heroku sets this automatically)
+    port = int(os.environ.get("PORT", 5000))
+    
+    # In production, host should be '0.0.0.0' to accept connections from any IP
+    # Debug mode should be turned off in production
+    app.run(host='0.0.0.0', port=port, debug=False)
