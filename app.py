@@ -35,9 +35,9 @@ except ValueError as e:
 
 
 # --- Reference Image ---
-# Using a URL for the reference document instead of embedding it as base64
+# Using a publicly accessible URL for the reference document instead of embedding it as base64
 # This avoids issues with base64 encoding in the deployed environment
-REFERENCE_IMAGE_URL = "https://raw.githubusercontent.com/hbx5555/FlaskOCR/master/static/reference_image.jpg"
+REFERENCE_IMAGE_URL = "https://i.imgur.com/JLhMo6C.jpg"
 
 # --- Gemini Model ---
 # Using a model that is good for multimodal tasks.
