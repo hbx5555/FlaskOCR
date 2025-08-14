@@ -41,7 +41,49 @@ REFERENCE_IMAGE_B64 = "iVBORw0KGgoAAAANSUhEUgAABQAAAAPACAIAAAD5Lp1sAAAAA3NCSVQIC
 # Using a model that is good for multimodal tasks.
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- Main Flask Route ---
+# --- Flask Routes ---
+@app.route('/', methods=['GET'])
+def index():
+    """
+    Root endpoint that provides basic information about the API.
+    """
+    welcome_message = """
+    <html>
+    <head>
+        <title>Flask OCR API</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { color: #333; }
+            h2 { color: #555; }
+            pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+            code { font-family: monospace; }
+            .endpoint { background: #e9f7ef; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <h1>Flask OCR Document Field Extraction API</h1>
+        <p>This API extracts specific fields from document images using Google's Gemini Multimodal AI.</p>
+        
+        <h2>Available Endpoints:</h2>
+        <div class="endpoint">
+            <h3>Extract Document Fields</h3>
+            <p><strong>Endpoint:</strong> <code>/extract</code></p>
+            <p><strong>Method:</strong> GET</p>
+            <p><strong>Parameters:</strong></p>
+            <ul>
+                <li><code>image_url</code> - URL of the image to analyze (required)</li>
+            </ul>
+            <p><strong>Example:</strong></p>
+            <pre>GET /extract?image_url=https://example.com/path/to/image.jpg</pre>
+            <p><strong>Response:</strong> Plain text with extracted field values</p>
+        </div>
+        
+        <p>For more information, visit the <a href="https://github.com/hbx5555/FlaskOCR">GitHub repository</a>.</p>
+    </body>
+    </html>
+    """
+    return Response(welcome_message, mimetype='text/html')
+
 @app.route('/extract', methods=['GET'])
 def extract_document_fields():
     """
