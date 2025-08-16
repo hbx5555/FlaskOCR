@@ -3,7 +3,8 @@ import requests
 import base64
 import traceback
 import sys
-from flask import Flask, request, Response
+import json
+from flask import Flask, request, Response, jsonify
 import google.generativeai as genai
 from PIL import Image
 from io import BytesIO
@@ -93,7 +94,7 @@ def index():
             </ul>
             <p><strong>Example:</strong></p>
             <pre>GET /extract?image_url=https://example.com/path/to/image.jpg</pre>
-            <p><strong>Response:</strong> Plain text with extracted field values</p>
+            <p><strong>Response:</strong> JSON object with extracted field values</p>
         </div>
         
         <p>For more information, visit the <a href="https://github.com/hbx5555/FlaskOCR">GitHub repository</a>.</p>
@@ -140,18 +141,21 @@ def extract_document_fields():
             print(error_msg)
             return Response(error_msg, status=500, mimetype='text/plain')
 
-        # 4. Define the prompt with specific instructions for the AI
+        # 4. Define the prompt with specific instructions for the AI with JSON output
         prompt = """
 You are an expert document analysis assistant. Your task is to first learn the spatial location of fields from a reference document using the provided text and example values. Then, you must find the data at those *exact same spatial locations* in a new, second document.
 
 Here are your instructions for learning from the reference document: From the reference image, learn the locations of the following fields: 'דגם' is 'GD9EL5R' and 'רמת גימור' is 'GX'.
 
-Now, using the locations you have just learned, analyze the new document and extract the corresponding values. Your output must be formatted on exactly four lines as follows:
-1. The literal text "דגם:"
-2. The extracted value for the 'דגם' field.
-3. The literal text "רמת גימור:"
-4. The extracted value for the 'רמת גימור' field.
-Do not include any other text or formatting.
+Now, using the locations you have just learned, analyze the new document and extract the corresponding values.
+
+Your output must be a valid JSON object with the following structure:
+{
+    "דגם": "[extracted model value]",
+    "רמת גימור": "[extracted trim level value]"
+}
+
+Do not include any other text or formatting outside of this JSON structure.
 """
 
         try:
@@ -159,7 +163,27 @@ Do not include any other text or formatting.
             print("Sending request to Gemini API...")
             print(f"API Key configured: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
             api_response = model.generate_content([prompt, reference_image, new_image])
-            return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+            
+            # Parse the response as JSON
+            # The response might have code blocks or other formatting, so we need to extract just the JSON
+            response_text = api_response.text.strip()
+            # Remove any markdown code block markers if present
+            if response_text.startswith('```json'):
+                response_text = response_text.replace('```json', '', 1)
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+            
+            # Parse the JSON
+            json_data = json.loads(response_text)
+            
+            # Return the JSON response
+            return jsonify(json_data)
+        except json.JSONDecodeError as e:
+            # Handle JSON parsing errors
+            error_msg = f"Error parsing JSON response: {str(e)}\nResponse text: {api_response.text}"
+            print(error_msg)
+            return Response(error_msg, status=500, mimetype='text/plain; charset=utf-8')
         except Exception as e:
             # Get detailed error information
             error_type = type(e).__name__
@@ -178,7 +202,7 @@ Do not include any other text or formatting.
         # New approach without reference image
         print("Using direct OCR approach without reference image")
         
-        # Define a simpler prompt that directly asks for field extraction
+        # Define a simpler prompt that directly asks for field extraction with JSON output
         prompt = """
 You are an expert document analysis assistant for vehicle registration documents in Hebrew. 
 
@@ -186,12 +210,13 @@ Analyze the provided image of a vehicle registration document and extract the fo
 1. 'דגם' (Model) - This field appears on the document and contains the vehicle model code.
 2. 'רמת גימור' (Trim Level) - This field appears on the document and contains the trim level code.
 
-Your output must be formatted on exactly four lines as follows:
-1. The literal text "דגם:"
-2. The extracted value for the 'דגם' field.
-3. The literal text "רמת גימור:"
-4. The extracted value for the 'רמת גימור' field.
-Do not include any other text or formatting.
+Your output must be a valid JSON object with the following structure:
+{
+    "דגם": "[extracted model value]",
+    "רמת גימור": "[extracted trim level value]"
+}
+
+Do not include any other text or formatting outside of this JSON structure.
 """
 
         try:
@@ -199,7 +224,27 @@ Do not include any other text or formatting.
             print("Sending request to Gemini API with direct approach...")
             print(f"API Key configured: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
             api_response = model.generate_content([prompt, new_image])
-            return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+            
+            # Parse the response as JSON
+            # The response might have code blocks or other formatting, so we need to extract just the JSON
+            response_text = api_response.text.strip()
+            # Remove any markdown code block markers if present
+            if response_text.startswith('```json'):
+                response_text = response_text.replace('```json', '', 1)
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+            
+            # Parse the JSON
+            json_data = json.loads(response_text)
+            
+            # Return the JSON response
+            return jsonify(json_data)
+        except json.JSONDecodeError as e:
+            # Handle JSON parsing errors
+            error_msg = f"Error parsing JSON response: {str(e)}\nResponse text: {api_response.text}"
+            print(error_msg)
+            return Response(error_msg, status=500, mimetype='text/plain; charset=utf-8')
         except Exception as e:
             # Get detailed error information
             error_type = type(e).__name__
