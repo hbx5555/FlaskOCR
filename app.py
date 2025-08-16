@@ -34,6 +34,21 @@ except ValueError as e:
     # genai.configure(api_key=api_key)
 
 
+# --- Configuration ---
+# Feature toggle for OCR approach
+# Set to 'reference_based' to use the original approach with reference image
+# Set to 'direct' to use the new approach without reference image
+# 
+# To switch between approaches:
+# 1. In development: Set the OCR_APPROACH environment variable locally
+#    export OCR_APPROACH=direct  # For the new approach without reference image
+#    export OCR_APPROACH=reference_based  # For the original approach (default)
+# 
+# 2. In Heroku: Use the Heroku CLI or dashboard to set config vars
+#    heroku config:set OCR_APPROACH=direct
+#    heroku config:set OCR_APPROACH=reference_based
+OCR_APPROACH = os.environ.get('OCR_APPROACH', 'direct')
+
 # --- Reference Image ---
 # Using a publicly accessible URL for the reference document instead of embedding it as base64
 # This avoids issues with base64 encoding in the deployed environment
@@ -110,20 +125,23 @@ def extract_document_fields():
     except Exception as e:
         return Response(f"Error processing image: {e}", status=500, mimetype='text/plain')
 
-    # 3. Prepare images for the Gemini API - fetch reference image from URL
-    try:
-        print("Fetching reference image from URL...")
-        reference_response = requests.get(REFERENCE_IMAGE_URL, timeout=10)
-        reference_response.raise_for_status()
-        reference_image = Image.open(BytesIO(reference_response.content))
-        print("Reference image fetched successfully")
-    except Exception as e:
-        error_msg = f"Error fetching reference image: {str(e)}"
-        print(error_msg)
-        return Response(error_msg, status=500, mimetype='text/plain')
+        # 3. Choose OCR approach based on feature toggle
+    if OCR_APPROACH == 'reference_based':
+        # Original approach with reference image
+        try:
+            print("Using reference-based OCR approach")
+            print("Fetching reference image from URL...")
+            reference_response = requests.get(REFERENCE_IMAGE_URL, timeout=10)
+            reference_response.raise_for_status()
+            reference_image = Image.open(BytesIO(reference_response.content))
+            print("Reference image fetched successfully")
+        except Exception as e:
+            error_msg = f"Error fetching reference image: {str(e)}"
+            print(error_msg)
+            return Response(error_msg, status=500, mimetype='text/plain')
 
-    # 4. Define the prompt with specific instructions for the AI
-    prompt = """
+        # 4. Define the prompt with specific instructions for the AI
+        prompt = """
 You are an expert document analysis assistant. Your task is to first learn the spatial location of fields from a reference document using the provided text and example values. Then, you must find the data at those *exact same spatial locations* in a new, second document.
 
 Here are your instructions for learning from the reference document: From the reference image, learn the locations of the following fields: 'דגם' is 'GD9EL5R' and 'רמת גימור' is 'GX'.
@@ -136,30 +154,66 @@ Now, using the locations you have just learned, analyze the new document and ext
 Do not include any other text or formatting.
 """
 
-    try:
-        # 5. Send the request to the Gemini API
-        print("Sending request to Gemini API...")
-        print(f"API Key configured: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
-        api_response = model.generate_content([prompt, reference_image, new_image])
+        try:
+            # 5. Send the request to the Gemini API
+            print("Sending request to Gemini API...")
+            print(f"API Key configured: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
+            api_response = model.generate_content([prompt, reference_image, new_image])
+            return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+        except Exception as e:
+            # Get detailed error information
+            error_type = type(e).__name__
+            error_msg = str(e)
+            stack_trace = traceback.format_exc()
+            
+            # Log the error details
+            print(f"Error Type: {error_type}")
+            print(f"Error Message: {error_msg}")
+            print(f"Stack Trace: {stack_trace}")
+            
+            # Return a more informative error response
+            return Response(f"Error communicating with the AI model:\nError Type: {error_type}\nError Message: {error_msg}", status=500, mimetype='text/plain; charset=utf-8')
+            
+    else:  # OCR_APPROACH == 'direct'
+        # New approach without reference image
+        print("Using direct OCR approach without reference image")
         
-        # 6. Return the extracted text as a plain text response
-        return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+        # Define a simpler prompt that directly asks for field extraction
+        prompt = """
+You are an expert document analysis assistant for vehicle registration documents in Hebrew. 
 
-    except Exception as e:
-        # Get detailed error information
-        error_type = type(e).__name__
-        error_msg = str(e)
-        stack_trace = traceback.format_exc()
+Analyze the provided image of a vehicle registration document and extract the following fields:
+1. 'דגם' (Model) - This field appears on the document and contains the vehicle model code.
+2. 'רמת גימור' (Trim Level) - This field appears on the document and contains the trim level code.
+
+Your output must be formatted on exactly four lines as follows:
+1. The literal text "דגם:"
+2. The extracted value for the 'דגם' field.
+3. The literal text "רמת גימור:"
+4. The extracted value for the 'רמת גימור' field.
+Do not include any other text or formatting.
+"""
+
+        try:
+            # Send the request to the Gemini API with only the new image
+            print("Sending request to Gemini API with direct approach...")
+            print(f"API Key configured: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
+            api_response = model.generate_content([prompt, new_image])
+            return Response(api_response.text, mimetype='text/plain; charset=utf-8')
+        except Exception as e:
+            # Get detailed error information
+            error_type = type(e).__name__
+            error_msg = str(e)
+            stack_trace = traceback.format_exc()
+            
+            # Log the error details
+            print(f"Error Type: {error_type}")
+            print(f"Error Message: {error_msg}")
+            print(f"Stack Trace: {stack_trace}")
+            
+            # Return a more informative error response
+            return Response(f"Error communicating with the AI model:\nError Type: {error_type}\nError Message: {error_msg}", status=500, mimetype='text/plain; charset=utf-8')
         
-        # Log the error details
-        print(f"Error Type: {error_type}")
-        print(f"Error Message: {error_msg}")
-        print(f"Stack Trace: {stack_trace}")
-        
-        # Return a more informative error response
-        error_details = f"Error Type: {error_type}\nError Message: {error_msg}"
-        return Response(f"Error communicating with the AI model:\n{error_details}", 
-                       status=500, mimetype='text/plain')
 
 
 # --- Run the Application ---
