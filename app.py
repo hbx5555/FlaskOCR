@@ -42,7 +42,7 @@ REFERENCE_IMAGE_URL = "https://xpertlink.agency/wp-content/uploads/2025/08/רי�
 # --- Gemini Model ---
 # Using a model that is good for multimodal tasks.
 # Using flash model due to quota limitations with pro
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # --- Flask Routes ---
 @app.route('/', methods=['GET'])
