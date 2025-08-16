@@ -94,7 +94,13 @@ def index():
             </ul>
             <p><strong>Example:</strong></p>
             <pre>GET /extract?image_url=https://example.com/path/to/image.jpg</pre>
-            <p><strong>Response:</strong> JSON object with extracted field values</p>
+            <p><strong>Response:</strong> JSON object with the following structure:</p>
+            <pre>{
+    "דגם": "extracted model value",
+    "רמת גימור": "extracted trim level value",
+    "כינוי מסחרי": "extracted commercial name",
+    "תוצר": "extracted producer name"
+}</pre>
         </div>
         
         <p>For more information, visit the <a href="https://github.com/hbx5555/FlaskOCR">GitHub repository</a>.</p>
@@ -145,14 +151,16 @@ def extract_document_fields():
         prompt = """
 You are an expert document analysis assistant. Your task is to first learn the spatial location of fields from a reference document using the provided text and example values. Then, you must find the data at those *exact same spatial locations* in a new, second document.
 
-Here are your instructions for learning from the reference document: From the reference image, learn the locations of the following fields: 'דגם' is 'GD9EL5R' and 'רמת גימור' is 'GX'.
+Here are your instructions for learning from the reference document: From the reference image, learn the locations of the following fields: 'דגם' is 'GD9EL5R', 'רמת גימור' is 'GX', 'כינוי מסחרי' and 'תוצר'.
 
 Now, using the locations you have just learned, analyze the new document and extract the corresponding values.
 
 Your output must be a valid JSON object with the following structure:
 {
     "דגם": "[extracted model value]",
-    "רמת גימור": "[extracted trim level value]"
+    "רמת גימור": "[extracted trim level value]",
+    "כינוי מסחרי": "[extracted commercial name]",
+    "תוצר": "[extracted producer name]"
 }
 
 Do not include any other text or formatting outside of this JSON structure.
@@ -209,11 +217,15 @@ You are an expert document analysis assistant for vehicle registration documents
 Analyze the provided image of a vehicle registration document and extract the following fields:
 1. 'דגם' (Model) - This field appears on the document and contains the vehicle model code.
 2. 'רמת גימור' (Trim Level) - This field appears on the document and contains the trim level code.
+3. 'כינוי מסחרי' (Commercial Name) - This field appears on the document and contains the commercial name.
+4. 'תוצר' (Producer) - This field appears on the document and contains the producer/manufacturer name.
 
 Your output must be a valid JSON object with the following structure:
 {
     "דגם": "[extracted model value]",
-    "רמת גימור": "[extracted trim level value]"
+    "רמת גימור": "[extracted trim level value]",
+    "כינוי מסחרי": "[extracted commercial name]",
+    "תוצר": "[extracted producer name]"
 }
 
 Do not include any other text or formatting outside of this JSON structure.
